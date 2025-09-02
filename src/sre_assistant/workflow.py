@@ -18,8 +18,11 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.genai import types
 from pydantic import BaseModel, Field
 
-# Import the new tool
+# Import tools
 from .tools.human_approval_tool import HumanApprovalTool
+from .tools.prometheus_tool import PrometheusQueryTool
+from .tools.loki_tool import LokiLogQueryTool
+from .tools.control_plane_tool import ControlPlaneTool
 
 
 # --- 1. 定義結構化輸出 (Pydantic Models) ---
@@ -34,30 +37,47 @@ class DispatchDecision(BaseModel):
     confidence: float = Field(description="對此決策的信心指數 (0.0 到 1.0)")
 
 
-# --- 2. 定義各階段的佔位符代理 (Placeholder Agents) ---
-# 在後續的開發任務中，這些簡單的 LlmAgent 將被替換為功能完備的真實代理
+# --- 2. 實例化工具並定義具備工具的代理 ---
 
-def _create_placeholder_agent(name: str, instruction: str, tools: List[Any] = None) -> LlmAgent:
-    """一個用於創建簡單佔位符代理的輔助函式"""
+# 實例化所有需要的工具
+prometheus_tool = PrometheusQueryTool()
+loki_tool = LokiLogQueryTool()
+control_plane_tool = ControlPlaneTool()
+human_approval_tool = HumanApprovalTool(name="ask_for_approval")
+
+# 為 LlmAgent 創建一個輔助函式，以保持程式碼整潔
+def _create_agent(name: str, instruction: str, tools: List[Any] = None) -> LlmAgent:
+    """一個用於創建 LlmAgent 的輔助函式"""
     return LlmAgent(
         name=name,
         instruction=instruction,
-        model="gemini-1.5-flash",  # 使用一個快速且經濟的模型
+        model="gemini-1.5-flash",
         tools=tools or []
     )
 
-MetricsAnalyzer = _create_placeholder_agent(
-    "MetricsAnalyzer", "分析指標數據並總結發現"
+# 定義具備真實工具的診斷代理
+MetricsAnalyzer = _create_agent(
+    "MetricsAnalyzer",
+    "分析指標數據並總結發現。請使用 prometheus_query_tool。",
+    tools=[prometheus_tool]
 )
-LogAnalyzer = _create_placeholder_agent(
-    "LogAnalyzer", "分析日誌數據並找出異常錯誤"
+LogAnalyzer = _create_agent(
+    "LogAnalyzer",
+    "分析日誌數據並找出異常錯誤。請使用 loki_log_query_tool。",
+    tools=[loki_tool]
 )
-TraceAnalyzer = _create_placeholder_agent(
+ContextFetcher = _create_agent(
+    "ContextFetcher",
+    "從 Control Plane 獲取關於服務變更歷史的上下文資訊。請使用 control_plane_tool。",
+    tools=[control_plane_tool]
+)
+# TraceAnalyzer 仍然是一個佔位符，因為我們尚未創建其工具
+TraceAnalyzer = _create_agent(
     "TraceAnalyzer", "分析追蹤數據以確定延遲瓶頸"
 )
 
-# The new RemediationExecutor agent
-RemediationExecutor = _create_placeholder_agent(
+# 定義具備人工審批工具的修復代理
+RemediationExecutor = _create_agent(
     "RemediationExecutor",
     instruction=(
         "You are a remediation executor. You have been given a remediation plan. "
@@ -66,15 +86,14 @@ RemediationExecutor = _create_placeholder_agent(
         "If the approval status from the tool output is 'approved', then you MUST state 'REMEDIATION APPROVED AND EXECUTED'. "
         "Otherwise, you must state 'REMEDIATION REJECTED'."
     ),
-    tools=[HumanApprovalTool(name="ask_for_approval")]
+    tools=[human_approval_tool]
 )
-
 
 # 驗證代理的佔位符
-HealthCheckAgent = _create_placeholder_agent(
+HealthCheckAgent = _create_agent(
     "HealthCheckAgent", "執行服務健康檢查"
 )
-SLOValidationAgent = _create_placeholder_agent(
+SLOValidationAgent = _create_agent(
     "SLOValidationAgent", "驗證服務的 SLO 是否恢復正常"
 )
 
@@ -124,6 +143,7 @@ class EnhancedSREWorkflow(SequentialAgent):
             sub_agents=[
                 MetricsAnalyzer,
                 LogAnalyzer,
+                ContextFetcher, # 新增的代理，用於獲取上下文
                 TraceAnalyzer,
             ],
         )
