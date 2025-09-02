@@ -3,13 +3,41 @@ deployment:
   platform: "local"
   debug: true
 
+# SRE Assistant's own URL, needed for callbacks
+sre_assistant:
+  base_url: "http://localhost:8000"
+
 memory:
   backend: "postgresql"
-  postgres_connection_string: "postgresql+psycopg2://postgres:postgres@localhost:5432/sre_assistant"
+  # This connection string points to the PostgreSQL service defined in docker-compose.yml
+  postgres_connection_string: "postgresql+psycopg2://postgres:postgres@localhost:5432/sre_dev"
 
 session_backend: "postgresql"
 
 auth:
-  provider: "none"
-  enable_rbac: false
+  provider: "jwt"
+  enable_rbac: true
   enable_rate_limiting: false
+  # Configuration for JWTProvider to align with Keycloak started in dev mode
+  # As per setup_local_environment.sh, Keycloak runs on port 8080.
+  # The default realm for dev mode is 'master'.
+  jwks_url: "http://localhost:8080/realms/master/protocol/openid-connect/certs"
+  jwt_algorithm: "RS256"
+  # The client ID that sre-assistant should expect from Control Plane
+  oauth_client_id: "control-plane-client"
+
+# Configuration for the new tools, pointing to services from docker-compose.yml or local setup
+control_plane:
+  # This is a hypothetical URL as control-plane is not in the docker-compose.
+  base_url: "http://localhost:8081/api"
+  timeout_seconds: 10
+
+prometheus:
+  # This points to the Prometheus service in docker-compose.yml
+  base_url: "http://localhost:9090"
+  timeout_seconds: 15
+
+loki:
+  # This points to the Loki service in docker-compose.yml
+  base_url: "http://localhost:3100"
+  timeout_seconds: 20

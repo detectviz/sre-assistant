@@ -165,42 +165,93 @@ class OAuth2Provider(AuthProvider):
         except Exception:
             return False
 
+from jwt import PyJWKClient
+
 class JWTProvider(AuthProvider):
+    """
+    使用 JWKS (JSON Web Key Set) URL 的 JWT 認證提供者。
+
+    此提供者設計用於與 OIDC 相容的身份提供者 (如 Keycloak) 進行 M2M 認證。
+    它會從 IdP 的 JWKS 端點獲取公鑰，來驗證傳入的 JWT 的簽名。
+    """
     def __init__(self, config: AuthConfig):
         self.config = config
-        self.secret = config.jwt_secret
-        self.algorithm = config.jwt_algorithm
+        self.algorithm = config.jwt_algorithm or "RS256"
+        self.audience = config.oauth_client_id  # In M2M, client_id is often the audience
+
+        if not config.jwks_url:
+            raise ValueError("JWTProvider requires a 'jwks_url' in the configuration.")
+
+        self.jwks_client = PyJWKClient(config.jwks_url)
 
     async def authenticate(self, credentials: Dict[str, Any]) -> Tuple[bool, Optional[Dict]]:
         token = credentials.get('token')
         if not token:
             return False, None
+
         try:
-            payload = jwt.decode(token, self.secret, algorithms=[self.algorithm])
-            if 'exp' in payload and datetime.fromtimestamp(payload['exp'], tz=timezone.utc) < datetime.now(timezone.utc):
-                return False, None
-            user_info = {'user_id': payload.get('sub'), 'email': payload.get('email'), 'roles': payload.get('roles', []), 'claims': payload}
+            # 從 JWT 的標頭中獲取簽名所用的金鑰 ID (kid)
+            signing_key = self.jwks_client.get_signing_key_from_jwt(token)
+
+            # 使用獲取的公鑰來解碼和驗證 JWT
+            payload = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=[self.algorithm],
+                audience=self.audience,
+                options={"verify_exp": True} # 確保檢查過期時間
+            )
+
+            user_info = {
+                'user_id': payload.get('sub'),
+                'email': payload.get('email'),
+                'roles': payload.get('realm_access', {}).get('roles', []), # Keycloak-specific claim
+                'claims': payload
+            }
             return True, user_info
-        except jwt.InvalidTokenError as e:
+
+        except jwt.PyJWTError as e:
             print(f"JWT validation failed: {e}")
             return False, None
 
     async def authorize(self, user_info: Dict, resource: str, action: str) -> bool:
+        """
+        基於 JWT 中的角色 (roles) 進行授權。
+        """
         claims = user_info.get('claims', {})
-        permissions = claims.get('permissions', [])
+        # Keycloak 通常將角色資訊放在 'realm_access' 或 'resource_access' 中
+        roles = claims.get('realm_access', {}).get('roles', [])
+
+        if 'admin' in roles:
+            return True
+
         required_permission = f"{resource}:{action}"
-        return required_permission in permissions or 'admin' in user_info.get('roles', [])
+        # 簡易的權限檢查，真實場景可能更複雜
+        if 'sre-operator' in roles and action in ['read', 'restart', 'execute']:
+            return True
+        if 'viewer' in roles and action == 'read':
+            return True
+
+        return False
 
     async def refresh_token(self, refresh_token: str) -> Optional[str]:
-        try:
-            payload = jwt.decode(refresh_token, self.secret, algorithms=[self.algorithm])
-            new_payload = {**payload, 'exp': datetime.now(timezone.utc) + timedelta(seconds=self.config.jwt_expiry_seconds), 'iat': datetime.now(timezone.utc)}
-            return jwt.encode(new_payload, self.secret, algorithm=self.algorithm)
-        except jwt.InvalidTokenError:
-            return None
+        """
+        M2M Client Credentials Flow 中不存在 Refresh Token。
+        """
+        print("Warning: refresh_token was called on JWTProvider, which is not supported in M2M flows.")
+        return None
 
     async def health_check(self) -> bool:
-        return True
+        """
+        檢查是否能成功連線到 JWKS 端點。
+        """
+        try:
+            # PyJWKClient 在初始化時不會立即獲取金鑰，我們需要手動觸發一次
+            self.jwks_client.get_jwk_set(refresh=True)
+            return True
+        except Exception as e:
+            print(f"JWTProvider health check failed: Could not fetch keys from JWKS URL. Error: {e}")
+            return False
 
 class APIKeyProvider(AuthProvider):
     def __init__(self, config: AuthConfig):
