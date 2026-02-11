@@ -1,0 +1,506 @@
+manifest:
+  version: "0.1.3"
+  schema: https://a2as.org/cert/schema
+  subject:
+    name: detectviz/sre-assistant
+    source: https://github.com/detectviz/sre-assistant
+    branch: main
+    commit: "e151d2a7"
+    scope: [src/sre_assistant/auth/no_auth_provider.py, src/sre_assistant/main.py, src/sre_assistant/memory/backend_factory.py,
+      src/sre_assistant/tool_registry.py, src/sre_assistant/tools/control_plane_tool.py, src/sre_assistant/tools/human_approval_tool.py,
+      src/sre_assistant/tools/loki_tool.py, src/sre_assistant/tools/prometheus_tool.py, src/sre_assistant/workflow.py]
+  issued:
+    by: A2AS.org
+    at: '2026-02-11T17:01:33Z'
+    url: https://a2as.org/certified/agents/detectviz/sre-assistant
+  signatures:
+    digest: sha256:qJ-D2GYXSTO09YLzhFk5hvAlGZqrifX0V4jlCge6NzQ
+    key: ed25519:NGTseKqgKcXvtjBRtgpqSjdfpxr_cCy9HeZ91jg00so
+    sig: ed25519:9XRHWmUTr-aUg8-fwRKuvQPzfcQ7tjvafX_7gOAxSFD12gXxoLCHPSocQZdOiB5Jey3Wgbnj8csEFILdDU31Bg
+
+agents:
+  agent._create_diagnostic_phase:
+    type: factory
+    params:
+      name: DiagnosticPhase
+      function: _create_diagnostic_phase
+      sub_agents: [MetricsAnalyzer, LogAnalyzer, ContextFetcher, TraceAnalyzer]
+  agent._create_dispatcher_phase:
+    type: factory
+    models: [gemini-2.5-flash]
+    params:
+      name: IntelligentDispatcher
+      output_key: remediation_decision
+      function: _create_dispatcher_phase
+  agent._create_verification_phase:
+    type: factory
+    params:
+      name: VerificationPhase
+      after_agent_callback: self._check_verification_status
+      function: _create_verification_phase
+      sub_agents: [HealthCheckAgent, SLOValidationAgent]
+  MetricsAnalyzer:
+    type: instance
+    models: [gemini-1.5-flash]
+    params:
+      name: name
+      instruction: instruction
+      function: _create_agent
+  sre_workflow:
+    type: instance
+    models: [gemini-2.5-flash]
+    params:
+      class: EnhancedSREWorkflow
+      base: SequentialAgent
+      name: EnhancedSREWorkflow
+      sub_agents: [diagnostic_phase, dispatcher_phase, remediation_phase, verification_phase]
+      before_agent_callback: self._workflow_pre_check
+      after_agent_callback: self._workflow_post_process
+
+models:
+  gemini-1.5-flash:
+    type: literal
+    agents: [MetricsAnalyzer]
+  gemini-2.5-flash:
+    type: default
+    agents: [agent._create_dispatcher_phase, sre_workflow]
+
+teams:
+  agent._create_diagnostic_phase:
+    type: parallel
+    agents: [agent._create_diagnostic_phase, MetricsAnalyzer, LogAnalyzer, ContextFetcher, TraceAnalyzer]
+  agent._create_verification_phase:
+    type: sequential
+    agents: [agent._create_verification_phase, HealthCheckAgent, SLOValidationAgent]
+
+imports:
+  ABC: abc.ABC
+  abstractmethod: abc.abstractmethod
+  Any: typing.Any
+  asyncio: asyncio
+  AsyncIterator: typing.AsyncIterator
+  asyncpg: asyncpg
+  AuthConfig: contracts.AuthConfig
+  AuthFactory: auth.auth_factory.AuthFactory
+  AuthProvider: base.AuthProvider
+  BackgroundTasks: fastapi.BackgroundTasks
+  BaseAgent: google.adk.agents.BaseAgent
+  BaseModel: pydantic.BaseModel
+  CallbackContext: google.adk.agents.callback_context.CallbackContext
+  ChromaBackend: chroma_backend.ChromaBackend
+  chromadb: chromadb
+  config_manager: config.config_manager.config_manager
+  ControlPlaneTool: tools.control_plane_tool.ControlPlaneTool
+  datetime: datetime.datetime
+  default: google.auth.default
+  Depends: fastapi.Depends
+  Dict: typing.Dict
+  EnhancedSREWorkflow: workflow.EnhancedSREWorkflow
+  Enum: enum.Enum
+  FastAPI: fastapi.FastAPI
+  Field: pydantic.Field
+  field_validator: pydantic.field_validator
+  hashlib: hashlib
+  hmac: hmac
+  HTTPAuthorizationCredentials: fastapi.security.HTTPAuthorizationCredentials
+  HTTPBearer: fastapi.security.HTTPBearer
+  HTTPException: fastapi.HTTPException
+  httpx: httpx
+  HumanApprovalTool: tools.human_approval_tool.HumanApprovalTool
+  id_token: google.oauth2.id_token
+  InvocationContext: google.adk.agents.invocation_context.InvocationContext
+  jwt: jwt
+  List: typing.List
+  Literal: typing.Literal
+  LlmAgent: google.adk.agents.LlmAgent
+  LokiLogQueryTool: tools.loki_tool.LokiLogQueryTool
+  LongRunningFunctionTool: google.adk.tools.LongRunningFunctionTool
+  MatchingEngineIndexEndpoint: google.cloud.aiplatform.matching_engine.MatchingEngineIndexEndpoint
+  MemoryConfig: config.config_manager.MemoryConfig
+  model_validator: pydantic.model_validator
+  NoAuthProvider: no_auth_provider.NoAuthProvider
+  Optional: typing.Optional
+  os: os
+  packaging_version: packaging.version
+  ParallelAgent: google.adk.agents.ParallelAgent
+  Path: pathlib.Path
+  PrometheusQueryTool: tools.prometheus_tool.PrometheusQueryTool
+  PyJWKClient: jwt.PyJWKClient
+  Redis: redis.Redis
+  Request: google.auth.transport.requests.Request
+  requests: google.auth.transport.requests
+  Runner: google.adk.runners.Runner
+  SentenceTransformer: sentence_transformers.SentenceTransformer
+  SequentialAgent: google.adk.agents.SequentialAgent
+  service_account: google.oauth2.service_account
+  session_factory: session.backend_factory.session_factory
+  SpecifierSet: packaging.specifiers.SpecifierSet
+  ssl: ssl
+  status: fastapi.status
+  timedelta: datetime.timedelta
+  timezone: datetime.timezone
+  ToolError: contracts.ToolError
+  ToolEvent: google.adk.tools.ToolEvent
+  ToolResult: contracts.ToolResult
+  Tuple: typing.Tuple
+  types: google.genai.types
+  Union: typing.Union
+  uuid: uuid
+  uvicorn: uvicorn
+  ValidationInfo: pydantic.ValidationInfo
+  VectorBackend: backend_factory.VectorBackend
+  weaviate: weaviate
+  yaml: yaml
+
+functions:
+  __init__:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [self, config]
+  _aggregate_diagnostics:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [self, results]
+    params:
+      returns: Dict
+  _apply_env_overrides:
+    type: sync
+    module: src.sre_assistant.config.config_manager
+    args: [self, config]
+    params:
+      returns: Dict
+  _check_verification_status:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [self, context]
+  _create_agent:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [name, instruction, tools]
+    params:
+      returns: LlmAgent
+  _create_diagnostic_phase:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [self]
+    params:
+      returns: ParallelAgent
+  _create_dispatcher_phase:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [self]
+    params:
+      returns: LlmAgent
+  _create_remediation_phase:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [self]
+    params:
+      returns: BaseAgent
+  _create_ssl_context:
+    type: sync
+    module: src.sre_assistant.auth.auth_factory
+    args: [self]
+    params:
+      returns: ssl.SSLContext
+  _create_verification_phase:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [self]
+    params:
+      returns: SequentialAgent
+  _ensure_schema:
+    type: sync
+    module: src.sre_assistant.memory.backend_factory
+    args: [self]
+  _get_user_info:
+    type: async
+    module: src.sre_assistant.auth.auth_factory
+    args: [self, access_token]
+    params:
+      returns: Dict
+  _get_user_roles:
+    type: sync
+    module: src.sre_assistant.auth.auth_factory
+    args: [self, email]
+    params:
+      returns: List[str]
+  _init_credentials:
+    type: sync
+    module: src.sre_assistant.auth.auth_factory
+    args: [self]
+  _load_api_keys:
+    type: sync
+    module: src.sre_assistant.auth.auth_factory
+    args: [self]
+    params:
+      returns: Dict
+  _load_config:
+    type: sync
+    module: src.sre_assistant.config.config_manager
+    args: [self]
+    params:
+      returns: SREAssistantConfig
+  _load_yaml:
+    type: sync
+    module: src.sre_assistant.config.config_manager
+    args: [self, path]
+    params:
+      returns: Dict
+  _register_all_tools:
+    type: sync
+    module: src.sre_assistant.tool_registry
+    args: [self]
+  _trigger_rollback:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [self, context]
+  _workflow_post_process:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [self, context]
+    params:
+      returns: Optional[types.Content]
+  _workflow_pre_check:
+    type: sync
+    module: src.sre_assistant.workflow
+    args: [self, context]
+    params:
+      returns: Optional[types.Content]
+  authenticate:
+    type: async
+    module: src.sre_assistant.auth.no_auth_provider
+    args: [self, credentials]
+    params:
+      returns: Tuple
+  authorize:
+    type: async
+    module: src.sre_assistant.auth.no_auth_provider
+    args: [self, user_info, resource, action]
+    params:
+      returns: bool
+  check_compatibility:
+    type: sync
+    module: src.sre_assistant.tool_registry
+    args: [self, tool_name, tool_version, env_versions]
+    params:
+      returns: bool
+  check_postgres_session_dependency:
+    type: sync
+    module: src.sre_assistant.config.config_manager
+    args: [self]
+    params:
+      returns: SREAssistantConfig
+  create:
+    type: sync
+    module: src.sre_assistant.memory.backend_factory
+    args: [config]
+    params:
+      returns: VectorBackend
+  delete:
+    type: async
+    module: src.sre_assistant.memory.backend_factory
+    args: [self, ids]
+    params:
+      returns: bool
+  execute_query:
+    type: async
+    module: src.sre_assistant.tools.prometheus_tool
+    args: [self, promql_query, time]
+    params:
+      returns: ToolResult
+  execute_query_range:
+    type: async
+    module: src.sre_assistant.tools.loki_tool
+    args: [self, logql_query, limit, minutes_ago]
+    params:
+      returns: ToolResult
+  execute_workflow:
+    type: async
+    module: src.sre_assistant.main
+    args: [request, background_tasks, current_user]
+  get:
+    type: sync
+    module: src.sre_assistant.tool_registry
+    args: [self, name]
+    params:
+      returns: Optional[Any]
+  get_audit_logs:
+    type: async
+    module: src.sre_assistant.tools.control_plane_tool
+    args: [self, ctx, service_name, start_time, end_time]
+    params:
+      returns: ToolResult
+  get_auth_config:
+    type: sync
+    module: src.sre_assistant.config.config_manager
+    args: [self]
+    params:
+      returns: AuthConfig
+  get_current_user:
+    type: async
+    module: src.sre_assistant.main
+    args: [credentials]
+    params:
+      returns: Dict
+  get_default_version:
+    type: sync
+    module: src.sre_assistant.tool_registry
+    args: [self, name]
+    params:
+      returns: Optional[str]
+  get_deployment_config:
+    type: sync
+    module: src.sre_assistant.config.config_manager
+    args: [self]
+    params:
+      returns: DeploymentConfig
+  get_memory_config:
+    type: sync
+    module: src.sre_assistant.config.config_manager
+    args: [self]
+    params:
+      returns: MemoryConfig
+  get_tool:
+    type: sync
+    module: src.sre_assistant.tool_registry
+    args: [self, name, version, env_versions]
+    params:
+      returns: Optional[Any]
+  has_default:
+    type: sync
+    module: src.sre_assistant.tool_registry
+    args: [self, name]
+    params:
+      returns: bool
+  health_check:
+    type: async
+    module: src.sre_assistant.memory.backend_factory
+    args: [self]
+    params:
+      returns: bool
+  initialize:
+    type: async
+    module: src.sre_assistant.memory.backend_factory
+    args: [self]
+  read_root:
+    type: sync
+    module: src.sre_assistant.main
+  refresh_token:
+    type: async
+    module: src.sre_assistant.auth.no_auth_provider
+    args: [self, refresh_token]
+    params:
+      returns: Optional[str]
+  register:
+    type: sync
+    module: src.sre_assistant.tool_registry
+    args: [self, name, tool_version]
+  register_versioned_tool:
+    type: sync
+    module: src.sre_assistant.tool_registry
+    args: [self, tool, version]
+  run:
+    type: async
+    module: src.sre_assistant.tools.human_approval_tool
+    args: [self, request]
+    params:
+      returns: AsyncIterator[ToolEvent]
+  run_workflow_in_background:
+    type: async
+    module: src.sre_assistant.main
+    args: [user_query, session_id, user_info]
+  search:
+    type: async
+    module: src.sre_assistant.memory.backend_factory
+    args: [self, query_embedding, k]
+  set_default:
+    type: sync
+    module: src.sre_assistant.tool_registry
+    args: [self, name, version]
+  start:
+    type: sync
+    module: src.sre_assistant.main
+  to_dict:
+    type: sync
+    module: src.sre_assistant.contracts
+    args: [self]
+    params:
+      returns: Dict
+  upsert:
+    type: async
+    module: src.sre_assistant.memory.backend_factory
+    args: [self, embeddings, metadata]
+  validate_google_iam:
+    type: sync
+    module: src.sre_assistant.contracts
+    args: [cls, v, info]
+    params:
+      returns: str
+  validate_project_id:
+    type: sync
+    module: src.sre_assistant.config.config_manager
+    args: [cls, v, info]
+    params:
+      returns: str
+  validate_services:
+    type: sync
+    module: src.sre_assistant.contracts
+    args: [cls, v]
+    params:
+      returns: List[str]
+  validate_slo_targets:
+    type: sync
+    module: src.sre_assistant.contracts
+    args: [cls, v]
+    params:
+      returns: Dict
+  validate_weaviate:
+    type: sync
+    module: src.sre_assistant.config.config_manager
+    args: [cls, v, info]
+    params:
+      returns: str
+
+variables:
+  API_KEY:
+    type: env
+  api_key_header:
+    type: env
+  DATABASE_URL:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [src.sre_assistant.config.config_manager]
+  DEPLOYMENT_PLATFORM:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [src.sre_assistant.config.config_manager]
+  ENVIRONMENT:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [src.sre_assistant.config.config_manager]
+  MEMORY_BACKEND:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [src.sre_assistant.config.config_manager]
+  WEAVIATE_URL:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [src.sre_assistant.config.config_manager]
+
+files:
+  config_path:
+    type: literal
+    actions: [read]
+    params:
+      caller: [Path(path), open, yaml.safe_load]
+  path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [Path]
