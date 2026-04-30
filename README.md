@@ -1,12 +1,44 @@
 # SRE Assistant
 
-[![Google ADK](https://img.shields.io/badge/Built%20with-Google%20ADK-4285F4?logo=google&logoColor=white)](https://github.com/google/genkit)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
 ## 1. 專案簡介 (Project Overview)
 
-SRE Assistant 是一個基於 **Google Agent Development Kit (ADK)** 構建的、無介面的 (headless) 智能化站點可靠性工程 (SRE) 代理。
+SRE Assistant 是一個基於 **Hermes Agent** 構建的、無介面的 (headless) 智能化站點可靠性工程 (SRE) 代理。
+
+## 執行摘要
+
+過去系統缺乏透明度，難以快速定位服務異常。本次投資旨在建立**集中式數據中心**，以一次性基礎設施投入，換取全球服務的統一、高效維運能力，並為導入 AI 自動化排障奠定基礎。
+
+---
+
+## 投資效益
+
+| 面向 | 改善成果 |
+|:---|:---|
+| **成本優化** | 快速定位服務異常，顯著降低全球擴張的硬體與人力成本。 |
+| **風險控管** | 提供秒級全鏈路日誌調閱，加速釐清問題；完整保存業務操作軌跡，以滿足合規與稽核需求。 |
+| **組織升級** | 導入 AI 進行第一線告警處理，減輕夜間值班負擔；建立統一戰情室，打破跨部門資訊孤島；系統化沉澱維運知識庫。 |
+
+**AI 事件治理閉環流程**：
+
+```
+Grafana 偵測告警
+     ↓
+Telegram 通知 + Hermes Agent 自動喚醒
+     ↓
+AI 自動提取歷史趨勢圖、關聯底層錯誤日誌，並檢索知識庫 SOP
+     ↓
+AI 彙整初步根因分析 (RCA)，並推播至 Telegram
+     ↓
+【Human-in-the-Loop】SRE 確認後點擊「批准修復」
+     ↓
+系統自動執行修復腳本，並將結果回報至 Telegram
+     ↓
+AI 自動生成事後 RCA 報告，存入知識庫
+```
+
 
 在新架構下，本專案扮演 **專家代理 (Specialist Agent)** 的角色，負責接收來自上層 **指揮官 (Commander)** (例如 [control-plane](https://github.com/detectviz/control-plane)) 的 API 命令，並執行複雜的診斷、分析與自動化修復任務。
 
